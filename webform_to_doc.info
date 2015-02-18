@@ -1,0 +1,5 @@
+name = Webform to Doc
+description = This is a WF internally developed Module. It allows data from a webform to be inserted into a word document
+core = 7.x
+dependencies[] = webform
+package = Webform
