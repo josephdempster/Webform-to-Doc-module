@@ -463,22 +463,22 @@ OF YOUR ESTATE</B></FONT></FONT></FONT></FONT></P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>Your
-total estate is worth:".$currency.$total_estate."</B></FONT></FONT></FONT></FONT>
+total estate is worth:&nbsp".$currency.$total_estate."</B></FONT></FONT></FONT></FONT>
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>Your
-total debt is:".$currency.$debts."</B></FONT></FONT></FONT></FONT>
+total debt is:&nbsp".$currency.$debts."</B></FONT></FONT></FONT></FONT>
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>Your
-net estate is:".$currency.$net_estate."</B></FONT></FONT></FONT></FONT></P>
+net estate is:&nbsp".$currency.$net_estate."</B></FONT></FONT></FONT></FONT></P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>Of
 that, two-thirds are to be distributed as follows in accordance with
-Islamic law:".$currency.$total_estate_third_removed."</B></FONT></FONT></FONT></FONT></P>
+Islamic law:&nbsp".$currency.$total_estate_third_removed."</B></FONT></FONT></FONT></FONT></P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>SPOUSE: ".$currency.$spouse_complete_share."
@@ -525,7 +525,7 @@ the Name of Allah, the Beneficent, the Merciful</FONT></FONT></FONT></P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">This
-is the last Will and Testament of [your full name], currently
+is the last Will and Testament of ".$submitted_data[5]['value'][0].", currently
 residing at [your full address], made on [date of making this Will].</FONT></FONT></FONT></P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
@@ -678,8 +678,6 @@ of my estate</B></FONT></FONT></FONT></P>
 </OL>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
-<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><B><SPAN>COPY
-AND PASTE PAGE 2 DATA HERE</SPAN></B></FONT></FONT></FONT></P>
 <P STYLE=\"margin-left: 0.64cm; widows: 2; orphans: 2\"><BR>
 </P>
 <P CLASS=\"western\" STYLE=\"line-height: 150%; widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">My
@@ -712,8 +710,7 @@ one-third of my estate</B></FONT></FONT></FONT></P>
 <OL START=8>
 	<LI><P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
 	<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">The
-	remaining one-third of my estate </FONT><FONT FACE=\"Verdana, serif\"><B><SPAN>(INSERT
-	VALUE HERE)</SPAN></B></FONT><FONT FACE=\"Verdana, serif\"><B> </B></FONT><FONT FACE=\"Verdana, serif\">should
+	remaining one-third of my estate </FONT><FONT FACE=\"Verdana, serif\"><B><SPAN>.".$currency.$discretionary_total.".</SPAN></B></FONT><FONT FACE=\"Verdana, serif\"><B> </B></FONT><FONT FACE=\"Verdana, serif\">should
 	be distributed as follows:</FONT></FONT></FONT></P>
 </OL>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
@@ -1420,7 +1417,7 @@ echo '
     In the Name of Allah, the Beneficent, the Merciful
 </p>
 <p lang=\"en-GB\">
-    This is the last Will and Testament of [your full name], currently residing at [your full address], made on [date of making this Will].
+    This is the last Will and Testament of ".$submitted_data[5]['value'][0].", currently residing at [your full address], made on ."$submission->submitted"..
 </p>
 <ol>
     <li>
@@ -1567,7 +1564,7 @@ echo '
 <ol start=\"8\">
     <li>
         <p lang=\"en-GB\">
-            The remaining one-third of my estate <strong>(INSERT VALUE HERE)</strong> should be distributed as follows:
+            The remaining one-third of my estate <strong>".$currency.$discretionary_total."</strong> should be distributed as follows:
         </p>
     </li>
 </ol>
