@@ -42,6 +42,19 @@ function webform_to_doc_webform_submission_presave($node, $submission) {
 		$non_property_land_assets = $submitted_data[26]['value'][0] + $submitted_data[25]['value'][0] + $submitted_data[22]['value'][0];
 		$house_less_mortgage = $submitted_data[19]['value'][0] - $submitted_data[25]['value'][0];
 		
+		/*
+		 * Wifes shares will now work differently, values concerning that here
+		 *
+		 */
+		 $land_value_of_primary_home = $submitted_data[6]['value'][0];
+		 $land_value_of_shared_property = $submitted_data[34]['value'][0];
+		 $land_value_of_sole_property = $submitted_data[36]['value'][0];
+		 $total_land_value = $land_value_of_primary_home + $land_value_of_shared_property + $and_value_of_sole_property
+		 // $house_inheritable_by_wife_less_mortgage = $total_property_value_inheritable_by_wife - $submitted_data[25]['value'][0]
+		 
+		 
+		 
+		 
 		
 	   /*
 		* Swap currency code for symbol
@@ -252,6 +265,7 @@ function webform_to_doc_webform_submission_presave($node, $submission) {
 		#spouse Share
 		if ($spouse_alive == "Yes") {
 			if($gender_of_deceased=="Male") {
+				$total_nonland_estate_third_removed = $total_estate_third_removed - $total_land_value;
 				$spouse_share = $total_nonland_estate_third_removed / $divisor_for_spouse;
 				$remaining_estate = $total_estate_third_removed - $spouse_share;
 				} else {
