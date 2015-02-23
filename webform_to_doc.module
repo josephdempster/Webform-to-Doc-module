@@ -1423,7 +1423,7 @@ echo '
     In the Name of Allah, the Beneficent, the Merciful
 </p>
 <p lang=\"en-GB\">
-    This is the last Will and Testament of ".$submitted_data[5]['value'][0].", currently residing at [your full address], made on ."$submission->submitted"..
+    This is the last Will and Testament of ".$submitted_data[5]['value'][0].", currently residing at [your full address], made on ".$submission->submitted.".
 </p>
 <ol>
     <li>
