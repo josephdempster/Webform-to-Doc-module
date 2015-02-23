@@ -431,7 +431,7 @@ function webform_to_doc_webform_submission_presave($node, $submission) {
 		?>';
 		*/
 		
-		$spouse_percentage = find_percentage($spouse_percentage, $total_estate);
+		$spouse_percentage = ($spouse_complete_share/$total_estate)* 100;
 		
 		#Markup 
 		
