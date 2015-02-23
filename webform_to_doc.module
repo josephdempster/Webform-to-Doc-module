@@ -434,6 +434,9 @@ function webform_to_doc_webform_submission_presave($node, $submission) {
 		$spouse_percentage = ($spouse_complete_share/$total_estate_third_removed)* 100;
 		$spouse_percentage = number_format($spouse_percentage, 0);
 		
+		$father_percentage = ($father_complete_share/$total_estate_third_removed)* 100;
+		$father_percentage = number_format($father_percentage, 0);
+		
 		#Markup 
 		
 		$content = "<?php
@@ -516,7 +519,7 @@ Islamic law:&nbsp".$currency.$total_estate_third_removed."</B></FONT></FONT></FO
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>FATHER: ".$currency.$father_complete_share."
-</B></FONT></FONT></FONT></FONT>
+</B>&nbsp;".$father_percentage."</FONT></FONT></FONT></FONT>
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
