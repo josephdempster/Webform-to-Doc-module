@@ -6,7 +6,12 @@
 * 
 *
 */
-
+function find_percentage($num_percentage, $num_total) {
+  $divide = $num_percentage / $num_total;
+  $multiply = $divide * 100;
+  $final = number_format($multiply,0);
+  return $final;
+}
 
 function webform_to_doc_webform_submission_presave($node, $submission) {
 	#Filter the webform by node id so that the hook only fires on the supplied form
@@ -46,7 +51,7 @@ function webform_to_doc_webform_submission_presave($node, $submission) {
 		* Caluations for spouse have changed a little
 		*/
 		
-		$total_land_value = $submitted_data[32]['value'][0] + $submitted_data[34]['value'][0] + $submitted_data[36]['value'][0];
+		$total_land_value = $submitted_data[39]['value'][0] + $submitted_data[34]['value'][0] + $submitted_data[36]['value'][0];
 		
 	   /*
 		* Swap currency code for symbol
@@ -426,6 +431,8 @@ function webform_to_doc_webform_submission_presave($node, $submission) {
 		?>';
 		*/
 		
+		$spouse_percentage = find_percentage($spouse_percentage, $total_estate);
+		
 		#Markup 
 		
 		$content = "<?php
@@ -487,7 +494,7 @@ that, two-thirds are to be distributed as follows in accordance with
 Islamic law:&nbsp".$currency.$total_estate_third_removed."</B></FONT></FONT></FONT></FONT></P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
-<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>SPOUSE: ".$currency.$spouse_complete_share."
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>SPOUSE: ".$currency.$spouse_complete_share."&nbsp;".$spouse_percentage."
 </B></FONT></FONT></FONT></FONT>
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
