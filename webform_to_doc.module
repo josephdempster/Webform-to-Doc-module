@@ -1,0 +1,2059 @@
+<?php
+
+/**
+* @file
+* This module allows the content of a webform to be downloaded as a .doc file subject to styling
+* 
+*
+*/
+function find_percentage($num_percentage, $num_total) {
+  $divide = $num_percentage / $num_total;
+  $multiply = $divide * 100;
+  $final = number_format($multiply,0);
+  return $final;
+}
+
+function webform_to_doc_webform_submission_presave($node, $submission) {
+	#Filter the webform by node id so that the hook only fires on the supplied form
+	
+	if ($node->nid == '6') {
+	
+		$submitted_data = $submission->data;
+		
+	   /*
+		* Create pseudo-random string for filename, create file then set $path to the complete filename, this will allow us to associate a filename with
+		* a webform submission which will be useful when we're doing calculation recording.
+		*/
+		
+		$fn = md5(microtime()).'.php';
+		touch('bin/'.$fn);
+		touch('bin/html/'.$fn);
+		$path = 'bin/'.$fn;
+		$html_path = 'bin/html/'.$fn;
+		$link = 'http://www.shiawills.org/bin/'.$fn;
+		$html_link = 'http://www.shiawills.org/bin/html/'.$fn;
+		
+		/* for debugging */
+		
+		$form_vars = get_defined_vars();
+		
+	   /*
+       	* base values for calculation, we may need a seperate set for leasehold properties where there is no land to calculate and wife should in 
+		* theory inherit 100% of property
+		*/
+		
+		$debts = $submitted_data[28]['value'][0];
+		$currency = $submitted_data[30]['value'][0];
+		$non_property_land_assets = $submitted_data[26]['value'][0] + $submitted_data[25]['value'][0] + $submitted_data[22]['value'][0];
+		$house_less_mortgage = $submitted_data[19]['value'][0] - $submitted_data[25]['value'][0];
+		
+		/*
+		* Caluations for spouse have changed a little
+		*/
+		
+		$total_land_value = $submitted_data[39]['value'][0] + $submitted_data[34]['value'][0] + $submitted_data[36]['value'][0];
+		
+	   /*
+		* Swap currency code for symbol
+		*/
+		
+		if ($currency == 'usd') { 
+			$currency = "USD &#36;";
+		} else if ($currency == 'gbp') {
+			$currency = "GBP &pound;";
+		} else if ($currency == 'eur') {
+		 $currency = "EUR &euro;";
+		}
+		/*
+		* Is this house shared ownership? If so divide by 2
+		*
+		*/
+				
+		if ($submitted_data[20]['value'][0] == "Yes") {
+			$value_of_house_in_estate = $house_less_mortgage / 2;
+		} else {
+			$value_of_house_in_estate = $house_less_mortgage;
+		}
+		
+		$value_of_land_in_estate = $value_of_house_in_estate / 2;
+		$value_of_property_in_estate = $value_of_house_in_estate / 2;
+		$other_land_shared = $submitted_data[23]['value'][0] / 2;
+		$other_land_solo =  $submitted_data[24]['value'][0];
+		$other_land = ($other_land_shared + $other_land_solo) / 2;
+		$other_property = ($other_land_shared + $other_land_solo) / 2;
+		$gender_of_deceased = $submitted_data[8]['value'][0];
+		
+		#Total of individual asset classes
+		
+		$total_land_estate = $value_of_land_in_estate + $other_land; //land is not inheritable by wife
+		$total_nonland_estate = $non_property_land_assets + $value_of_property_in_estate + $other_property - $debts;
+		
+		#Gross assets
+		
+		$total_estate = $total_land_estate + $total_nonland_estate;
+		
+		$net_estate = $total_estate - $debts;
+		
+		#Third Removed
+		
+		$total_nonland_estate_third_removed = $total_nonland_estate * (2/3);
+		$total_estate_third_removed = $total_estate * (2/3);
+		
+		# round to 2 decimal places, this is usually done for currency and it will ensure any long recurring decimals don't skew the calculation.
+		
+		$total_estate_third_removed = round($total_estate_third_removed, 2);
+		
+	   /*
+		* Details of Heirs
+		* $father_alive Boolean (yes/no)
+		* $mother_alive Boolean (yes/no)
+		* $number_of_children Integer (number of daughters + number of sons)
+		* $number_of_daughters Integer
+		* $number_of_sons Integer
+		* $brothers_sharing_father Integer (number of living full brothers + number of living half brothers)
+		* $sisters_sharing_father Integer (number of living full sisters + number of living half sisters)
+		*/
+		
+		$father_alive = $submitted_data[11]['value'][0]; 
+		$mother_alive = $submitted_data[12]['value'][0]; 
+		$spouse_alive = $submitted_data[29]['value'][0]; 
+		$number_of_children = $submitted_data[15]['value'][0] + $submitted_data[14]['value'][0];
+		$number_of_daughters = $submitted_data[15]['value'][0];
+		$number_of_sons = $submitted_data[14]['value'][0];
+		$brothers_sharing_father = $submitted_data[13]['value'][0] + $submitted_data[17]['value'][0];
+		$sisters_sharing_father = $submitted_data[16]['value'][0] + $submitted_data[18]['value'][0];
+		
+		if ($father_alive=="yes") {
+			$father_val = 1;
+		}
+		
+		#Calculate if mother has blocker
+		
+		if ($father_alive=="yes" && $brothers_sharing_father >= 2) {
+			$mother_has_blocker = "Yes"; 
+		} else if ($father_alive=="yes" && $sisters_sharing_father >= 4) {
+			$mother_has_blocker = "Yes";
+		} else if ($father_alive=="yes" && $brothers_sharing_father >= 1 && $sisters_sharing_father >= 2) {
+			$mother_has_blocker = "Yes";
+		} else {
+			$mother_has_blocker = "No";
+		}
+		
+		#Calculate Divisor For Children
+		
+			
+		$divisor_for_children = 2 * $number_of_sons + $number_of_daughters;
+		
+		if ($number_of_sons == 0 && $number_of_daughters == 1) {
+			$divisor_for_daughters = 2;
+		} else if ($number_of_sons == 0 && $number_of_daughters >= 2) {
+			$divisor_for_daughters = 1.5;
+		} else {
+			$divisor_for_daughters = 1;
+		}
+		
+		$divisor_for_sons = 2 * $divisor_for_children;
+		
+		#calculate divisor for spouse
+		
+		if ($gender_of_deceased == "Male" && $number_of_children > 0) {
+			$divisor_for_spouse = 8;
+		} else if ($gender_of_deceased == "Male" && $number_of_children == 0) {
+			$divisor_for_spouse = 4;
+		} else if ($gender_of_deceased == "Female" && $number_of_children > 0) {
+			$divisor_for_spouse = 4;
+		} else if ($gender_of_deceased == "Female" && $number_of_children == 0) {
+			$divisor_for_spouse = 2;
+		}
+		
+		#calculate divisor for mother
+		
+		if ($number_of_children >= 0 || $mother_has_blocker == "Yes") {
+			$divisor_for_mother=6;
+		} else {
+			$divisor_for_mother=3;
+		}
+		
+		#Calculate divisor for father
+		
+		if ($number_of_children >= 0) {
+			$divisor_for_father = 6;
+		} else {
+			$divisor_for_father = 1;
+		}
+		
+		#Calculate Bouncing Shares
+		
+		if ($father_alive == "yes") {
+			$father_has_bouncing_share = 1;
+		} else {
+			$father_has_bouncing_share = 0;
+		}
+		
+		if ($mother_alive == "yes" && $mother_has_blocker == "No") {
+			$mother_has_bouncing_share = 1;
+		} else {
+			$mother_has_bouncing_share =  0;
+		}
+		
+		if ($number_of_daughters > 0 && $number_of_sons == 0) {
+			$daughters_have_bouncing_share = 1;
+		} else {
+			$daughters_have_bouncing_share = 0;
+		}
+		
+		$bouncing_denominator = 0;
+		
+		if ($father_has_bouncing_share == 1) {
+			 $bouncing_denominator += 1/$divisor_for_father; 
+		}
+		
+		if ($mother_has_bouncing_share == 1) {
+			 $bouncing_denominator += 1/$divisor_for_mother; 
+		}
+		
+		if ($daughters_have_bouncing_share == 1) {
+			 $bouncing_denominator += 1/$divisor_for_daughters; 
+		}
+		
+		
+		
+		/* Retiring this code for the time being
+		
+		$father_denominator = $father_val * ($divisor_for_father / 1);
+		$mother_denominator = $mother_has_bouncing_share * ($divisor_for_mother / 1);
+		$daughter_denominator =  $daughters_have_bouncing_share * ($divisor_for_daughters / 1);
+		
+		$bouncing_denominator = $father_denominator + $mother_denominator + $daughter_denominator;
+		
+		*/
+		
+	#	$bouncing_denominator =  $father_alive * ($divisor_for_father / 1) $mother_has_bouncing_share * ($divisor_for_mother / 1)  $daughters_have_bouncing_share * ($divisor_for_daughters / 1);
+		
+		#Calculate Daughters Bouncing Share
+		
+		if ($daughters_have_bouncing_share == 1) {
+			$daughters_bouncing_share = (1 / $divisor_for_daughters) / $bouncing_denominator; 
+		} else {
+			$daughters_bouncing_share = 0;
+		}
+		
+		#Calculate Mothers Bouncing Share
+		
+		if ($mother_has_bouncing_share == 1) {
+			$mothers_bouncing_share = (1 / $divisor_for_mother) / $bouncing_denominator; 
+		} else {
+			$mothers_bouncing_share = 0;
+		}
+		
+		#Calculate Fathers Bouncing Share
+		
+		if ($father_alive == "yes") {
+			$fathers_bouncing_share = (1 / $divisor_for_father) / $bouncing_denominator; 
+		} else {
+			$fathers_bouncing_share = 0;
+		}
+		
+	
+		
+		
+		#Please be aware that these conditionals work on a cascading total, please do not rearrange the order or the universe will collapse and it will be your fault
+		
+		#spouse Share
+		if ($spouse_alive == "Yes") {
+			if($gender_of_deceased!="Male") {
+				$total_nonland_estate_third_removed = $total_estate_third_removed - $total_land_estate;
+				$spouse_share = $total_nonland_estate_third_removed / $divisor_for_spouse;
+				$remaining_estate = $total_estate_third_removed - $spouse_share;
+				} else {
+				$spouse_share = $total_estate_third_removed / $divisor_for_spouse;
+				$remaining_estate = $total_estate_third_removed - $spouse_share;
+			}
+		} else {
+			$remaining_estate = $total_estate_third_removed;
+		}
+		
+		#mothers Share 
+		
+		if ($mother_alive == "yes") {
+			$mother_share = min($total_estate_third_removed / $divisor_for_mother, $remaining_estate);
+			$remaining_estate = $remaining_estate - $mother_share;
+		}
+		
+		#fathers Share
+		
+		if ($father_alive == "yes") {
+			$father_share = min($total_estate_third_removed / $divisor_for_father, $remaining_estate);
+			$remaining_estate = $remaining_estate - $father_share;
+		}
+		
+		#daughters share
+		if ($number_of_daughters > 0) {
+			if ($number_of_sons > 0) {
+				$daughter_share = $remaining_estate * $number_of_daughters / $divisor_for_children;
+			} else {
+				$daughter_share = min($total_estate_third_removed / $divisor_for_daughters, $remaining_estate);
+			}
+		}
+		
+		#Sons Share
+		if ($number_of_sons > 0) {
+			$son_share = $remaining_estate * 2 * $number_of_sons / $divisor_for_children;
+		}
+		
+		$first_pass_deductions = $spouse_share + $mother_share + $father_share + $daughter_share + $son_share;
+		
+		$remaining_estate_after_first_pass = $total_estate_third_removed - $first_pass_deductions;
+		
+		
+		#Bouncing Share
+		$mothers_bouncing_share_total = $remaining_estate_after_first_pass * $mothers_bouncing_share;
+		$fathers_bouncing_share_total = $remaining_estate_after_first_pass * $fathers_bouncing_share;
+		$daughters_bouncing_share_total = $remaining_estate_after_first_pass * $daughters_bouncing_share;
+		
+		#Grand totals
+		$discretionary_total = number_format(round($total_estate / 3, 2),2);
+		$spouse_complete_share = number_format(round($spouse_share, 2),2);
+		$mother_complete_share = number_format(round($mother_share + $mothers_bouncing_share_total, 2),2);
+		$father_complete_share = number_format(round($father_share + $fathers_bouncing_share_total, 2),2);
+		$daughter_complete_share = number_format(round($daughter_share + $daughters_bouncing_share_total, 2),2);
+		$son_complete_share = number_format(round($son_share, 2),2);
+		$total_estate = number_format($total_estate, 2);
+		$debts = number_format($debts, 2);
+		$net_estate = number_format($net_estate, 2);
+		$total_estate_third_removed = number_format($total_estate_third_removed, 2);
+		
+		#and we're done, lets process those variables
+		
+		
+		#Commit filename to session so we can use it on the confirmation page
+		
+		$_SESSION['filename'] = array();
+		$_SESSION['filename']['#value'] = $link;
+		
+		$_SESSION['html_filename'] = array();
+		$_SESSION['html_filename']['#value'] = $html_link;
+		
+		#For debugging purposes dump component calculations to screen, comment out when not needed
+		
+		/*
+		$_SESSION['dumpvars'] = array();
+		$_SESSION['dumpvars']['#value'] = $mother_share;
+		$_SESSION['dumpvars_2'] = array();
+		$_SESSION['dumpvars_2']['#value'] = $father_share;
+		$_SESSION['dumpvars_12'] = array();
+		$_SESSION['dumpvars_12']['#value'] = $daughter_share;
+		$_SESSION['dumpvars_13'] = array();
+		$_SESSION['dumpvars_13']['#value'] = $son_share;
+		$_SESSION['dumpvars_19'] = array();
+		$_SESSION['dumpvars_19']['#value'] = $spouse_share;		
+		$_SESSION['dumpvars_3'] = array();
+		$_SESSION['dumpvars_3']['#value'] = $mother_complete_share;
+		$_SESSION['dumpvars_4'] = array();
+		$_SESSION['dumpvars_4']['#value'] = $father_complete_share;
+		$_SESSION['dumpvars_4'] = array();
+		$_SESSION['dumpvars_4']['#value'] = $spouse_complete_share;
+		$_SESSION['dumpvars_5'] = array();
+		$_SESSION['dumpvars_5']['#value'] = $mothers_bouncing_share_total;
+		$_SESSION['dumpvars_6'] = array();
+		$_SESSION['dumpvars_6']['#value'] = $fathers_bouncing_share_total;
+		$_SESSION['dumpvars_7'] = array();
+		$_SESSION['dumpvars_7']['#value'] = $bouncing_denominator;
+		$_SESSION['dumpvars_8'] = array();
+		$_SESSION['dumpvars_8']['#value'] = $remaining_estate_after_first_pass;
+		$_SESSION['dumpvars_9'] = array();
+		$_SESSION['dumpvars_9']['#value'] = $mothers_bouncing_share;
+		$_SESSION['dumpvars_10'] = array();
+		$_SESSION['dumpvars_10']['#value'] = $fathers_bouncing_share;
+		$_SESSION['dumpvars_11'] = array();
+		$_SESSION['dumpvars_11']['#value'] = $first_pass_deductions;
+		$_SESSION['dumpvars_14'] = array();
+		$_SESSION['dumpvars_14']['#value'] = $divisor_for_children;
+		$_SESSION['dumpvars_15'] = array();
+		$_SESSION['dumpvars_15']['#value'] = $divisor_for_daughters;
+		$_SESSION['dumpvars_16'] = array();
+		$_SESSION['dumpvars_16']['#value'] = $divisor_for_sons;
+		$_SESSION['dumpvars_17'] = array();
+		$_SESSION['dumpvars_17']['#value'] = $divisor_for_father;
+		$_SESSION['dumpvars_18'] = array();
+		$_SESSION['dumpvars_18']['#value'] = $divisor_for_mother;
+		$_SESSION['dumpvars_20'] = array();
+		$_SESSION['dumpvars_20']['#value'] = $divisor_for_spouse;
+		$_SESSION['dumpvars_21'] = array();
+		$_SESSION['dumpvars_21']['#value'] = $spouse_alive;
+		*/
+		
+		#Start file payload
+		/*		
+		$content = '<?php
+		header("Content-type: application/vnd.ms-word");
+		header("Content-Disposition: attachment;Filename=inheritence_calculation.doc");
+
+		echo "<html>";
+		echo "<meta http-equiv=\"Content-Type\" content=\"text/html; charset=Windows-1252\">";
+		echo "<body>";
+		//echo "<center><img src=\"https://www.world-federation.org/wf_images/wf_logo.png\" border=\"0\"></center>";
+		echo "<br>";		
+		echo "<table border=\"0\" width=\"100%\">";
+		echo "<tr><td colspan=\"2\" bgcolor=\"#A2D39C\"><b>Estate totals</b></td></tr>";
+		echo "<tr>";
+		echo "<td bgcolor=\"#FDC68A\" width=\"35%\"><b>Gross estate (before deductions or 2/3 rule)</b></td>";
+		echo "<td>'.$total_estate.'</td>";
+		echo "</tr>";
+		echo "<tr>";
+		echo "<td bgcolor=\"#FDC68A\" width=\"35%\"><b>Total Inheritable Estate (less obligations and 2/3 rule)</b></td>";
+		echo "<td>'.$total_inheritable_estate.'</td>";
+		echo "</tr>";			
+		echo "<tr><td colspan=\"2\" bgcolor=\"#A2D39C\"><b>Shares for immediate family</b></td></tr>";
+		echo "<tr>";
+		echo "<td bgcolor=\"#FDC68A\" width=\"35%\"><b>Spouse\'s Share</b></td>";
+		echo "<td>'.$spouse_complete_share.'</td>";
+		echo "</tr>";
+		echo "<tr>";
+		echo "<td bgcolor=\"#FDC68A\" width=\"35%\"><b>Father\'s Share:</b></td>";
+		echo "<td>'.$father_complete_share.'</td>";
+		echo "</tr>";
+		echo "<tr>";
+		echo "<td bgcolor=\"#FDC68A\" width=\"35%\"><b>Mother\'s Share</b></td>";
+		echo "<td>'.$mother_complete_share.'</td>";
+		echo "</tr>";
+		echo "<tr>";
+		echo "<td bgcolor=\"#FDC68A\" width=\"35%\"><b>Daughter\'s Share</b></td>";
+		echo "<td>'.$daughter_complete_share.'</td>";
+		echo "</tr>";
+		echo "<tr>";
+		echo "<td bgcolor=\"#FDC68A\" width=\"35%\"><b>Son\'s Share</b></td>";
+		echo "<td>'.$son_complete_share.'</td>";
+		echo "</tr>";
+		echo "</table>";
+		echo "</body>";
+		echo "</html>";
+		?>';
+		*/
+		
+		$spouse_percentage = ($spouse_complete_share/$total_estate)* 100;
+		$spouse_percentage = number_format($spouse_percentage, 0);
+		
+		#Markup 
+		
+		$content = "<?php
+
+		header('Content-type: application/vnd.ms-word');
+		header('Content-Disposition: attachment;Filename=inheritence_calculation.doc');
+
+		echo'<!DOCTYPE HTML PUBLIC \"-//W3C//DTD HTML 4.0 Transitional//EN\">
+<HTML>
+<HEAD>
+	<META HTTP-EQUIV=\"CONTENT-TYPE\" CONTENT=\"text/html; charset=windows-1252\">
+	<TITLE></TITLE>
+	
+	<STYLE TYPE=\"text/css\">
+	<!--
+		@page { margin-left: 3.18cm; margin-right: 3.18cm; margin-top: 2.54cm; margin-bottom: 1.25cm }
+		P { margin-bottom: 0cm; direction: ltr; color: #000000; widows: 0; orphans: 0 }
+		P.western { font-family: \"Verdana\", serif; font-size: 11pt; so-language: en-GB }
+		P.cjk { font-size: 11pt }
+		P.ctl { font-family: \"Verdana\"; font-size: 11pt }
+		A:link { color: #0000ff; so-language: zxx }
+	-->
+	</STYLE>
+</HEAD>
+<BODY LANG=\"en-GB\" TEXT=\"#000000\" LINK=\"#0000ff\" DIR=\"LTR\">
+<P CLASS=\"western\" ALIGN=CENTER STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>EXAMPLE:
+YOUR INHERITANCE CALCULATIONS IN WORDS</B></FONT></FONT></FONT></FONT></P>
+<P CLASS=\"western\" ALIGN=CENTER STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>Based
+on the data you put onto the calculator, the document below shows
+your data in words and sentences, and the various inheritances that
+may apply to it based on Islamic law.</B></FONT></FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" ALIGN=CENTER STYLE=\"widows: 2; orphans: 2; page-break-before: always\">
+<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>DIVISION
+OF YOUR ESTATE</B></FONT></FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>Your
+total estate is worth:&nbsp".$currency.$total_estate."</B></FONT></FONT></FONT></FONT>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>Your
+total debt is:&nbsp".$currency.$debts."</B></FONT></FONT></FONT></FONT>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>Your
+net estate is:&nbsp".$currency.$net_estate."</B></FONT></FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>Of
+that, two-thirds are to be distributed as follows in accordance with
+Islamic law:&nbsp".$currency.$total_estate_third_removed."</B></FONT></FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>SPOUSE: ".$currency.$spouse_complete_share."&nbsp;".$spouse_percentage."
+</B></FONT></FONT></FONT></FONT>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>SONS: ".$currency.$son_complete_share."
+</B></FONT></FONT></FONT></FONT>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>DAUGHTERS: ".$currency.$daughter_complete_share."
+</B></FONT></FONT></FONT></FONT>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>MOTHER: ".$currency.$mother_complete_share."
+</B></FONT></FONT></FONT></FONT>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>FATHER: ".$currency.$father_complete_share."
+</B></FONT></FONT></FONT></FONT>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>Your
+remaining one-third, that you may distribute as you wish, either to
+persons or to causes, is ".$currency.$discretionary_total."</B></FONT></FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2; page-break-before: always\">
+<BR>
+</P>
+<P CLASS=\"western\" ALIGN=CENTER STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>AN
+EXAMPLE OF A WILL</B></FONT></FONT></FONT></FONT></P>
+<P STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" ALIGN=CENTER STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">In
+the Name of Allah, the Beneficent, the Merciful</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">This
+is the last Will and Testament of ".$submitted_data[5]['value'][0].", currently
+residing at [your full address], made on [date of making this Will].</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<OL>
+	<LI><P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">I
+	hereby revoke all my former Wills, Codicils and Testaments made by
+	me and declare this to be my last Will.</FONT></FONT></FONT></P>
+</OL>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<OL START=2>
+	<LI><P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+	<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">Being
+	a Shia Ithna Asheri Muslim, I hereby declare the administration and
+	devolution of my estate be governed by Islamic laws relating to
+	succession and inheritance as followed by Muslims of the Shia Ithna
+	Asheri faith and as set out in this my Will.</FONT></FONT></FONT></P>
+</OL>
+<P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+<BR><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><B>Appointment
+of executors</B></FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+<BR><BR>
+</P>
+<OL START=3>
+	<LI><P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+	<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">I
+	appoint [name of first executor], currently residing at [their full
+	address], and [name of second executor], currently residing at
+	[their full address] to be the joint executors and trustees of this
+	my last Will and Testament. But if any one or more of the above
+	named persons should refuse to act, die before me, or die before the
+	trusts hereof have been fully performed, then I appoint [name of the
+	substitute executor], currently residing at [their full address] to
+	be the executor of this my Will and Testament in the place and stead
+	of any one or more of the above named persons, and the expression
+	&lsquo;my Trustee&rsquo; used throughout this document includes the
+	Trustee for the time being, whether original or substitute.</FONT></FONT></FONT></P>
+</OL>
+<P CLASS=\"western\" STYLE=\"margin-left: -0.03cm; margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+<BR><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+<BR><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+<BR><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+<BR><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><B>Appointment
+of guardians of minor children</B></FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"margin-left: -0.03cm; margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+<BR><BR>
+</P>
+<OL START=4>
+	<LI><P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+	<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">I
+	appoint [name of first guardian], currently residing at [their full
+	address] and [name of second guardian], currently residing at [their
+	full address] to be the guardians of any of my children who are
+	minors at the time of my death if I am the sole surviving parent at
+	the date of my death.</FONT></FONT></FONT></P>
+	<OL TYPE=a>
+		<LI><P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+		<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">I
+		direct the guardian(s) of my minor children to raise them as
+		practicing Muslims according to the rules, customs, and teachings
+		of the Shia Ithna Asheri faith of Islam.</FONT></FONT></FONT></P>
+		<LI><P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+		<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">I
+		Revoke all previous appointments of Guardians made by me before the
+		date of this Will.</FONT></FONT></FONT></P>
+	</OL>
+</OL>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><B>Funeral
+arrangements</B></FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<OL START=5>
+	<LI><P STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">I
+	direct the executors of this my Will to ensure my burial is in
+	accordance with the law and practice of the Shia Ithna Asheri Muslim
+	faith, and the expenses relating to my funeral shall be a first
+	charge on my estate.</FONT></FONT></FONT></P>
+</OL>
+<P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+<BR><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><B>Debts
+and dues</B></FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"margin-left: 2.54cm; margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+<BR><BR>
+</P>
+<OL START=6>
+	<LI><P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+	<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">I
+	give, devise, and bequeath all my real and personal property of
+	every nature and kind, wherever situated and over which I may have a
+	general power of appointment, to my executors </FONT><FONT FACE=\"Verdana, serif\">upon
+	the following trusts</FONT><FONT FACE=\"Verdana, serif\">, namely:</FONT></FONT></FONT></P>
+	<OL TYPE=a>
+		<LI><P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+		<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">To
+		pay my just debts (as listed in the Codicils that follows this my
+		Will), funeral, and other testamentary expenses, all succession
+		duties, inheritance and death taxes, and all expenses necessarily
+		incidental thereto, to be paid and satisfied by my Trustees as soon
+		as is convenient after my death;</FONT></FONT></FONT></P>
+		<LI><P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+		<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">To
+		collect all my debts and outstanding property (as listed in the
+		Codicils that follows this my Will), and to return the property and
+		trusts of others that I have in my trust (as listed in the Codicils
+		that follows this my Will);</FONT></FONT></FONT></P>
+		<LI><P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+		<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">To
+		pay such religious taxes and dues (such as </FONT><FONT FACE=\"Verdana, serif\"><I>khums</I></FONT><FONT FACE=\"Verdana, serif\">,
+		</FONT><FONT FACE=\"Verdana, serif\"><I>zakat, kaffarah</I></FONT><FONT FACE=\"Verdana, serif\">,
+		etc.) as well as hiring someone to undertake the performance of my
+		lapsed religious obligations (</FONT><FONT FACE=\"Verdana, serif\"><I>qadha</I></FONT><FONT FACE=\"Verdana, serif\">)
+		such as prayers, fasts, and Hajj pilgrimage (as listed in the
+		Codicils that follows this my Will). Any religious dues should be
+		paid to [name of Jamaat/Federation/Organisation/Representative].</FONT></FONT></FONT></P>
+	</OL>
+</OL>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><B>Two-thirds
+of my estate</B></FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"margin-left: 0.64cm; margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+<BR><BR>
+</P>
+<OL START=7>
+	<LI><P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+	<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">I
+	direct the executors of this my Will to pay the following amounts to
+	the respective heirs as outlined in the Islamic laws of succession
+	and inheritance according to the Shia Ithna Asheri Muslim faith
+	(after incurring all customary and adequate expenses of my funeral
+	and all expenses):</FONT></FONT></FONT></P>
+</OL>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P STYLE=\"margin-left: 0.64cm; widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"line-height: 150%; widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">My
+spouse [full name]: (amount)</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"line-height: 150%; widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">My
+son [full name]: (amount)</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"line-height: 150%; widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">My
+son [full name]: (amount)</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"line-height: 150%; widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">My
+son [full name]: (amount)</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"line-height: 150%; widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">My
+daughter [full name]: (amount)</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"line-height: 150%; widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">My
+daughter [full name]: (amount)</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"line-height: 150%; widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">My
+daughter [full name]: (amount)</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"line-height: 150%; widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">My
+father [full name]: (amount)</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"line-height: 150%; widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">My
+mother [full name]: (amount)</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"line-height: 150%; widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><B>Remaining
+one-third of my estate</B></FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"margin-left: 0.64cm; margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+<BR><BR>
+</P>
+<OL START=8>
+	<LI><P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+	<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">The
+	remaining one-third of my estate </FONT><FONT FACE=\"Verdana, serif\"><B><SPAN>.".$currency.$discretionary_total.".</SPAN></B></FONT><FONT FACE=\"Verdana, serif\"><B> </B></FONT><FONT FACE=\"Verdana, serif\">should
+	be distributed as follows:</FONT></FONT></FONT></P>
+</OL>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">[Enter
+your wishes here. The one-third may be distributed in any lawful
+manner that you choose, for example: to your heirs, or to other
+members of your family who are not going to inherit you, or to
+friends, or to known needy people, or to general good causes, or to
+specific causes, or to charities.]</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><B>Advice
+to my heirs</B></FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"margin-left: 0.64cm; margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+<BR><BR>
+</P>
+<OL START=9>
+	<LI><P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+	<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">It
+	is my most earnest request to all my heirs that:</FONT></FONT></FONT></P>
+	<OL TYPE=a>
+		<LI><P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+		<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">If
+		any differences of opinion should arise between them as regards any
+		of my assets whatsoever or as the ownership, character, value or
+		otherwise, of the same or as to the meaning or true interpretation
+		of anything contained in this my Will, or Codicils, then they shall
+		on no account have to resort to any Court of Law whatsoever. They
+		should settle it amongst themselves firstly with compromise and
+		understanding, and if not, then with the executors of this and if
+		not, then with the appointed arbitrators of their resident
+		Jamaat/Islamic centre and/or their Regional Federation, and if not,
+		then as a last and final option they should follow the remedies as
+		set out in Islamic law of the Shia Ithna Asheri faith.</FONT></FONT></FONT></P>
+		<LI><P CLASS=\"western\" STYLE=\"margin-bottom: 0.21cm; widows: 2; orphans: 2\">
+		<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">To
+		always bear in mind that each heir may and should exercise
+		flexibility, understanding, mutual cooperation, and honesty in his
+		inheritance. This means that each heir has the right to voluntarily
+		amend his/her own share of inheritance in favour of another heir,
+		if the other is more deserving or needy.</FONT></FONT></FONT></P>
+	</OL>
+</OL>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">Signature:</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">Name:</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">Date:</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">Signed
+by the above-named Testator as and for his last Will in the presence
+of us both present at the same time who at his/her request in his
+presence and in the presence of each other have hereunto subscribed
+our names as witnesses.</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><U><B>Witness
+1</B></U></FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">Name:</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">Address:</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">Signature:</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">Date:</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><U><B>Witness
+2</B></U></FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">Name:</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">Address:</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">Signature:</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\">Date:</FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P STYLE=\"widows: 2; orphans: 2; page-break-before: always\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3><B>This
+Codicil is part of this Will.</B></FONT></FONT></FONT></FONT></FONT></P>
+<P STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3><B>Codicil
+I</B></FONT></FONT></FONT></FONT></FONT></P>
+<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3><B>List
+of all my Property/Assets</B></FONT></FONT></FONT></FONT></FONT></P>
+<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>(Here
+make a list of all your property including: cash, bank accounts
+(local and foreign), off shore accounts, life assurances, real
+estate, jewellery (kept for the purpose of investment),
+shares/stocks, lockers and others)</FONT></FONT></FONT></FONT></FONT></P>
+<P STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<TABLE WIDTH=568 BORDER=1 BORDERCOLOR=\"#00000a\" CELLPADDING=7 CELLSPACING=0>
+	<COL WIDTH=181>
+	<COL WIDTH=170>
+	<COL WIDTH=173>
+	<TR VALIGN=TOP>
+		<TD WIDTH=181 HEIGHT=23>
+			<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>Name
+			of property/estate</FONT></FONT></FONT></FONT></FONT></P>
+		</TD>
+		<TD WIDTH=170>
+			<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>Location</FONT></FONT></FONT></FONT></FONT></P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>Comments</FONT></FONT></FONT></FONT></FONT></P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=181 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=170>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=181 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=170>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=181 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=170>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=181 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=170>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=181 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=170>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=181 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=170>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=181 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=170>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=181 HEIGHT=23>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=170>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+</TABLE>
+<P STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>The
+Codicils are part of your Will. Since the Codicils are likely to
+change over time the Codicil which has the latest date and which is
+attached to this Will, forms part of the Will and revokes all former
+Codicils made by you. Therefore the dates on the Codicil may not
+necessarily correspond with the date on the Will. Please ensure that
+you sign your latest Codicils and date it. </FONT></FONT></FONT></FONT></FONT>
+</P>
+<P STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>Signature
+&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;.
+Date &hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;..</FONT></FONT></FONT></FONT></FONT></P>
+<P STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3><B>Codicil
+II</B></FONT></FONT></FONT></FONT></FONT></P>
+<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3><B>List
+of Debts and Property of other to whom I have to pay/return</B></FONT></FONT></FONT></FONT></FONT></P>
+<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>(Here
+list all your debts and property (Amanat) you have of other people)</FONT></FONT></FONT></FONT></FONT></P>
+<P STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<TABLE WIDTH=568 BORDER=1 BORDERCOLOR=\"#00000a\" CELLPADDING=7 CELLSPACING=0>
+	<COL WIDTH=167>
+	<COL WIDTH=184>
+	<COL WIDTH=173>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=23>
+			<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>Name
+			of person who I owe</FONT></FONT></FONT></FONT></FONT></P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>Amount/Property
+			owed</FONT></FONT></FONT></FONT></FONT></P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>Comments</FONT></FONT></FONT></FONT></FONT></P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=23>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+</TABLE>
+<P STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>The
+Codicils are part of your Will. Since the Codicils are likely to
+change over time the Codicil which has the latest date and which is
+attached to this Will, forms part of the Will and revokes all former
+Codicils made by you. Therefore the dates on the Codicil may not
+necessarily correspond with the date on the Will. Please ensure that
+you sign your latest Codicil and date it.  </FONT></FONT></FONT></FONT></FONT>
+</P>
+<P STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P STYLE=\"widows: 2; orphans: 2; page-break-before: always\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>Signature
+&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;.
+Date &hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;..</FONT></FONT><FONT FACE=\"Verdana, serif\"><FONT SIZE=3><B>Codicil
+III</B></FONT></FONT></FONT></FONT></FONT></P>
+<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3><B>List
+of Debts and Property that belong to me and I have to collect</B></FONT></FONT></FONT></FONT></FONT></P>
+<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>(Here
+list the people who owe you and the property (Amanat) that others are
+keeping for you)</FONT></FONT></FONT></FONT></FONT></P>
+<P STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<TABLE WIDTH=568 BORDER=1 BORDERCOLOR=\"#00000a\" CELLPADDING=7 CELLSPACING=0>
+	<COL WIDTH=167>
+	<COL WIDTH=184>
+	<COL WIDTH=173>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=23>
+			<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>Name
+			of person who owes me</FONT></FONT></FONT></FONT></FONT></P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>Amount/Property
+			owed to me</FONT></FONT></FONT></FONT></FONT></P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>Comments</FONT></FONT></FONT></FONT></FONT></P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=24>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+	<TR VALIGN=TOP>
+		<TD WIDTH=167 HEIGHT=23>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=184>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+		<TD WIDTH=173>
+			<P STYLE=\"widows: 2; orphans: 2\"><BR>
+			</P>
+		</TD>
+	</TR>
+</TABLE>
+<P STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>The
+Codicils are part of your Will. Since the Codicils are likely to
+change over time the Codicil which has the latest date and which is
+attached to this Will, forms part of the Will and revokes all former
+Codicils made by you. Therefore the dates on the Codicil may not
+necessarily correspond with the date on the Will. Please ensure that
+you sign your latest Codicil and date it.  </FONT></FONT></FONT></FONT></FONT>
+</P>
+<P STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<P STYLE=\"widows: 2; orphans: 2\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>Signature
+&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;.
+Date &hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;..</FONT></FONT></FONT></FONT></FONT></P>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
+</P>
+<DIV TYPE=FOOTER>
+	<P CLASS=\"western\" STYLE=\"margin-top: 1.19cm; widows: 0; orphans: 0\">
+	<FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><SPAN LANG=\"en-US\"><I>The
+	information in this website, which does not purport to be a
+	comprehensive or complete answer to any specific inheritance
+	scenario, has been provided by The World Federation of KSIMC, Africa
+	Federation, and The Council of European Jamaats (hereinafter
+	referred to as &lsquo;the Organisations&rsquo;), and has not been
+	independently verified for compliance with UK laws on inheritance or
+	taxation, or the laws of any other country. While the contents of
+	this website have been prepared in good faith, no representation,
+	warranty, assurance or undertaking (express or implied) is made, and
+	no responsibility or liability is or will be accepted by the
+	Organisations or by their officers, employees, members or agents in
+	relation to the adequacy, accuracy, completeness or reasonableness
+	of the contents of this website. All and any such responsibility and
+	liability is expressly disclaimed. The recipient acknowledges and
+	agrees that no person has, nor is held out as having, any authority
+	to give any statement, warranty, representation, assurance or
+	undertaking on behalf of the Organisations in connection with the
+	content of this website.</I></SPAN></FONT></FONT></FONT></FONT></P>
+	<P CLASS=\"western\" STYLE=\"widows: 0; orphans: 0\">&nbsp;</P>
+	<P CLASS=\"western\" STYLE=\"widows: 0; orphans: 0\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><SPAN LANG=\"en-US\"><I>No
+	information set out, or referred to, in this website shall form the
+	basis of any contract. </I></SPAN></FONT></FONT></FONT></FONT>
+	</P>
+	<P CLASS=\"western\" STYLE=\"widows: 0; orphans: 0\">&nbsp;</P>
+	<P STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><SPAN LANG=\"en-US\"><I>The
+	Organisations give no undertaking to provide any recipient with
+	access to any additional information or to update the contents of
+	this website or to give any additional information, or to correct
+	any inaccuracies in it which may become apparent.</I></SPAN></FONT></FONT></FONT></FONT></P>
+</DIV>
+</BODY>
+</HTML>'; ?>";
+
+
+$html_content= "<?php
+echo '
+<div align=\"center\" style=\"width: 700px; border: 1px solid #000; padding:10px;\">
+<p lang=\"en-GB\" align=\"CENTER\">
+    <strong>EXAMPLE: YOUR INHERITANCE CALCULATIONS IN WORDS</strong>
+</p>
+<p lang=\"en-GB\">
+    <strong>
+        Based on the data you put onto the calculator, the document below shows your data in words and sentences, and the various inheritances that may apply
+        to it based on Islamic law.
+    </strong>
+</p>
+<p lang=\"en-GB\" align=\"CENTER\">
+    <strong>DIVISION OF YOUR ESTATE</strong>
+</p>
+<p lang=\"en-GB\">
+    <strong>Your total estate is worth:".$currency.$total_estate."</strong>
+</p>
+<p lang=\"en-GB\">
+    <strong>Your total debt is:".$currency.$debts."</strong>
+</p>
+<p lang=\"en-GB\">
+    <strong>Your net estate is:".$currency.$net_estate."</strong>
+</p>
+<p lang=\"en-GB\">
+    <strong>Of that, two-thirds are to be distributed as follows in accordance with Islamic law:".$currency.$total_estate_third_removed."</strong>
+</p>
+<p lang=\"en-GB\">
+    <strong>SPOUSE:".$currency.$spouse_complete_share."</strong>
+</p>
+<p lang=\"en-GB\">
+    <strong>SONS: ".$currency.$son_complete_share."</strong>
+</p>
+<p lang=\"en-GB\">
+    <strong>DAUGHTERS:".$currency.$daughter_complete_share."</strong>
+</p>
+<p lang=\"en-GB\">
+    <strong>MOTHER: ".$currency.$mother_complete_share."</strong>
+</p>
+<p lang=\"en-GB\">
+    <strong>FATHER:".$currency.$father_complete_share."</strong>
+</p>
+<p lang=\"en-GB\">
+    <strong>Your remaining one-third, that you may distribute as you wish, either to persons or to causes, is ".$currency.$discretionary_total."</strong>
+</p>
+<p lang=\"en-GB\" align=\"CENTER\">
+    <strong>AN EXAMPLE OF A WILL</strong>
+</p>
+<p lang=\"en-GB\" align=\"CENTER\">
+    In the Name of Allah, the Beneficent, the Merciful
+</p>
+<p lang=\"en-GB\">
+    This is the last Will and Testament of ".$submitted_data[5]['value'][0].", currently residing at [your full address], made on ".$submission->submitted.".
+</p>
+<ol>
+    <li>
+        <p lang=\"en-GB\">
+            I hereby revoke all my former Wills, Codicils and Testaments made by me and declare this to be my last Will.
+        </p>
+    </li>
+</ol>
+<ol start=\"2\">
+    <li>
+        <p lang=\"en-GB\">
+            Being a Shia Ithna Asheri Muslim, I hereby declare the administration and devolution of my estate be governed by Islamic laws relating to
+            succession and inheritance as followed by Muslims of the Shia Ithna Asheri faith and as set out in this my Will.
+        </p>
+    </li>
+</ol>
+<p lang=\"en-GB\">
+    <strong>Appointment of executors</strong>
+</p>
+<ol start=\"3\">
+    <li>
+        <p lang=\"en-GB\">
+            I appoint [name of first executor], currently residing at [their full address], and [name of second executor], currently residing at [their full
+            address] to be the joint executors and trustees of this my last Will and Testament. But if any one or more of the above named persons should refuse
+            to act, die before me, or die before the trusts hereof have been fully performed, then I appoint [name of the substitute executor], currently
+            residing at [their full address] to be the executor of this my Will and Testament in the place and stead of any one or more of the above named
+            persons, and the expression ‘my Trustee’ used throughout this document includes the Trustee for the time being, whether original or substitute.
+        </p>
+    </li>
+</ol>
+<p lang=\"en-GB\">
+    <strong>Appointment of guardians of minor children</strong>
+</p>
+<ol start=\"4\">
+    <li>
+        <p lang=\"en-GB\">
+            I appoint [name of first guardian], currently residing at [their full address] and [name of second guardian], currently residing at [their full
+            address] to be the guardians of any of my children who are minors at the time of my death if I am the sole surviving parent at the date of my
+            death.
+        </p>
+        <ol type=\"a\">
+            <li>
+                <p lang=\"en-GB\">
+                    I direct the guardian(s) of my minor children to raise them as practicing Muslims according to the rules, customs, and teachings of the
+                    Shia Ithna Asheri faith of Islam.
+                </p>
+            </li>
+            <li>
+                <p lang=\"en-GB\">
+                    I Revoke all previous appointments of Guardians made by me before the date of this Will.
+                </p>
+            </li>
+        </ol>
+    </li>
+</ol>
+<p lang=\"en-GB\">
+    <strong>Funeral arrangements</strong>
+</p>
+<ol start=\"5\">
+    <li>
+        <p lang=\"en-GB\">
+            I direct the executors of this my Will to ensure my burial is in accordance with the law and practice of the Shia Ithna Asheri Muslim faith, and
+            the expenses relating to my funeral shall be a first charge on my estate.
+        </p>
+    </li>
+</ol>
+<p lang=\"en-GB\">
+    <strong>Debts and dues</strong>
+</p>
+<ol start=\"6\">
+    <li>
+        <p lang=\"en-GB\">
+            I give, devise, and bequeath all my real and personal property of every nature and kind, wherever situated and over which I may have a general
+            power of appointment, to my executors upon the following trusts, namely:
+        </p>
+        <ol type=\"a\">
+            <li>
+                <p lang=\"en-GB\">
+                    To pay my just debts (as listed in the Codicils that follows this my Will), funeral, and other testamentary expenses, all succession
+                    duties, inheritance and death taxes, and all expenses necessarily incidental thereto, to be paid and satisfied by my Trustees as soon as is
+                    convenient after my death;
+                </p>
+            </li>
+            <li>
+                <p lang=\"en-GB\">
+                    To collect all my debts and outstanding property (as listed in the Codicils that follows this my Will), and to return the property and
+                    trusts of others that I have in my trust (as listed in the Codicils that follows this my Will);
+                </p>
+            </li>
+            <li>
+                <p lang=\"en-GB\">
+                    To pay such religious taxes and dues (such as <em>khums</em>, <em>zakat, kaffarah</em>, etc.) as well as hiring someone to undertake the
+                    performance of my lapsed religious obligations (<em>qadha</em>) such as prayers, fasts, and Hajj pilgrimage (as listed in the Codicils that
+                    follows this my Will). Any religious dues should be paid to [name of Jamaat/Federation/Organisation/Representative].
+                </p>
+            </li>
+        </ol>
+    </li>
+</ol>
+<p lang=\"en-GB\">
+    <strong>Two-thirds of my estate</strong>
+</p>
+<ol start=\"7\">
+    <li>
+        <p lang=\"en-GB\">
+            I direct the executors of this my Will to pay the following amounts to the respective heirs as outlined in the Islamic laws of succession and
+            inheritance according to the Shia Ithna Asheri Muslim faith (after incurring all customary and adequate expenses of my funeral and all expenses):
+        </p>
+    </li>
+</ol>
+<p lang=\"en-GB\">
+    <strong>COPY AND PASTE PAGE 2 DATA HERE</strong>
+</p>
+<p lang=\"en-GB\">
+    My spouse [full name]: (amount)
+</p>
+<p lang=\"en-GB\">
+    My son [full name]: (amount)
+</p>
+<p lang=\"en-GB\">
+    My son [full name]: (amount)
+</p>
+<p lang=\"en-GB\">
+    My son [full name]: (amount)
+</p>
+<p lang=\"en-GB\">
+    My daughter [full name]: (amount)
+</p>
+<p lang=\"en-GB\">
+    My daughter [full name]: (amount)
+</p>
+<p lang=\"en-GB\">
+    My daughter [full name]: (amount)
+</p>
+<p lang=\"en-GB\">
+    My father [full name]: (amount)
+</p>
+<p lang=\"en-GB\">
+    My mother [full name]: (amount)
+</p>
+<p lang=\"en-GB\">
+    <strong>Remaining one-third of my estate</strong>
+</p>
+<ol start=\"8\">
+    <li>
+        <p lang=\"en-GB\">
+            The remaining one-third of my estate <strong>".$currency.$discretionary_total."</strong> should be distributed as follows:
+        </p>
+    </li>
+</ol>
+<p lang=\"en-GB\">
+    [Enter your wishes here. The one-third may be distributed in any lawful manner that you choose, for example: to your heirs, or to other members of your
+    family who are not going to inherit you, or to friends, or to known needy people, or to general good causes, or to specific causes, or to charities.]
+</p>
+<p lang=\"en-GB\">
+    <strong>Advice to my heirs</strong>
+</p>
+<ol start=\"9\">
+    <li>
+        <p lang=\"en-GB\">
+            It is my most earnest request to all my heirs that:
+        </p>
+        <ol type=\"a\">
+            <li>
+                <p lang=\"en-GB\">
+                    If any differences of opinion should arise between them as regards any of my assets whatsoever or as the ownership, character, value or
+                    otherwise, of the same or as to the meaning or true interpretation of anything contained in this my Will, or Codicils, then they shall on
+                    no account have to resort to any Court of Law whatsoever. They should settle it amongst themselves firstly with compromise and
+                    understanding, and if not, then with the executors of this and if not, then with the appointed arbitrators of their resident Jamaat/Islamic
+                    centre and/or their Regional Federation, and if not, then as a last and final option they should follow the remedies as set out in Islamic
+                    law of the Shia Ithna Asheri faith.
+                </p>
+            </li>
+            <li>
+                <p lang=\"en-GB\">
+                    To always bear in mind that each heir may and should exercise flexibility, understanding, mutual cooperation, and honesty in his
+                    inheritance. This means that each heir has the right to voluntarily amend his/her own share of inheritance in favour of another heir, if
+                    the other is more deserving or needy.
+                </p>
+            </li>
+        </ol>
+    </li>
+</ol>
+<p lang=\"en-GB\">
+    Signature:
+</p>
+<p lang=\"en-GB\">
+    Name:
+</p>
+<p lang=\"en-GB\">
+    Date:
+</p>
+<p lang=\"en-GB\">
+    Signed by the above-named Testator as and for his last Will in the presence of us both present at the same time who at his/her request in his presence and
+    in the presence of each other have hereunto subscribed our names as witnesses.
+</p>
+<p lang=\"en-GB\">
+    <u><strong>Witness 1</strong></u>
+</p>
+<p lang=\"en-GB\">
+    Name:
+</p>
+<p lang=\"en-GB\">
+    Address:
+</p>
+<p lang=\"en-GB\">
+    Signature:
+</p>
+<p lang=\"en-GB\">
+    Date:
+</p>
+<p lang=\"en-GB\">
+    <u><strong>Witness 2</strong></u>
+</p>
+<p lang=\"en-GB\">
+    Name:
+</p>
+<p lang=\"en-GB\">
+    Address:
+</p>
+<p lang=\"en-GB\">
+    Signature:
+</p>
+<p lang=\"en-GB\">
+    Date:
+</p>
+<p lang=\"en-GB\">
+    <strong>This Codicil is part of this Will.</strong>
+</p>
+<p lang=\"en-GB\">
+    <strong>Codicil I</strong>
+</p>
+<p lang=\"en-GB\">
+    <strong>List of all my Property/Assets</strong>
+</p>
+<p lang=\"en-GB\">
+    (Here make a list of all your property including: cash, bank accounts (local and foreign), off shore accounts, life assurances, real estate, jewellery
+    (kept for the purpose of investment), shares/stocks, lockers and others)
+</p>
+<table width=\"568\" border=\"1\" cellpadding=\"7\" cellspacing=\"0\">
+    <colgroup>
+        <col width=\"181\"/>
+        <col width=\"170\"/>
+        <col width=\"173\"/>
+    </colgroup>
+    <tbody>
+        <tr valign=\"TOP\">
+            <td width=\"181\" height=\"23\">
+                <p lang=\"en-GB\">
+                    Name of property/estate
+                </p>
+            </td>
+            <td width=\"170\">
+                <p lang=\"en-GB\">
+                    Location
+                </p>
+            </td>
+            <td width=\"173\">
+                <p lang=\"en-GB\">
+                    Comments
+                </p>
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"181\" height=\"24\">
+            </td>
+            <td width=\"170\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"181\" height=\"24\">
+            </td>
+            <td width=\"170\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"181\" height=\"24\">
+            </td>
+            <td width=\"170\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"181\" height=\"24\">
+            </td>
+            <td width=\"170\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"181\" height=\"24\">
+            </td>
+            <td width=\"170\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"181\" height=\"24\">
+            </td>
+            <td width=\"170\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"181\" height=\"24\">
+            </td>
+            <td width=\"170\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"181\" height=\"23\">
+            </td>
+            <td width=\"170\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+    </tbody>
+</table>
+<p lang=\"en-GB\">
+    The Codicils are part of your Will. Since the Codicils are likely to change over time the Codicil which has the latest date and which is attached to this
+    Will, forms part of the Will and revokes all former Codicils made by you. Therefore the dates on the Codicil may not necessarily correspond with the date
+    on the Will. Please ensure that you sign your latest Codicils and date it.
+</p>
+<p lang=\"en-GB\">
+    Signature ......................... Date ..........................
+</p>
+<p lang=\"en-GB\">
+    <strong>Codicil II</strong>
+</p>
+<p lang=\"en-GB\">
+    <strong>List of Debts and Property of other to whom I have to pay/return</strong>
+</p>
+<p lang=\"en-GB\">
+    (Here list all your debts and property (Amanat) you have of other people)
+</p>
+<table width=\"568\" border=\"1\" cellpadding=\"7\" cellspacing=\"0\">
+    <colgroup>
+        <col width=\"167\"/>
+        <col width=\"184\"/>
+        <col width=\"173\"/>
+    </colgroup>
+    <tbody>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"23\">
+                <p lang=\"en-GB\">
+                    Name of person who I owe
+                </p>
+            </td>
+            <td width=\"184\">
+                <p lang=\"en-GB\">
+                    Amount/Property owed
+                </p>
+            </td>
+            <td width=\"173\">
+                <p lang=\"en-GB\">
+                    Comments
+                </p>
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"23\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+    </tbody>
+</table>
+<p lang=\"en-GB\">
+    The Codicils are part of your Will. Since the Codicils are likely to change over time the Codicil which has the latest date and which is attached to this
+    Will, forms part of the Will and revokes all former Codicils made by you. Therefore the dates on the Codicil may not necessarily correspond with the date
+    on the Will. Please ensure that you sign your latest Codicil and date it.
+</p>
+<p lang=\"en-GB\">
+    Signature ........................... Date ............................<br>
+	<strong>Codicil III</strong>
+</p>
+<p lang=\"en-GB\">
+    <strong>List of Debts and Property that belong to me and I have to collect</strong>
+</p>
+<p lang=\"en-GB\">
+    (Here list the people who owe you and the property (Amanat) that others are keeping for you)
+</p>
+<table width=\"568\" border=\"1\" cellpadding=\"7\" cellspacing=\"0\">
+    <colgroup>
+        <col width=\"167\"/>
+        <col width=\"184\"/>
+        <col width=\"173\"/>
+    </colgroup>
+    <tbody>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"23\">
+                <p lang=\"en-GB\">
+                    Name of person who owes me
+                </p>
+            </td>
+            <td width=\"184\">
+                <p lang=\"en-GB\">
+                    Amount/Property owed to me
+                </p>
+            </td>
+            <td width=\"173\">
+                <p lang=\"en-GB\">
+                    Comments
+                </p>
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"24\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+        <tr valign=\"TOP\">
+            <td width=\"167\" height=\"23\">
+            </td>
+            <td width=\"184\">
+            </td>
+            <td width=\"173\">
+            </td>
+        </tr>
+    </tbody>
+</table>
+<p lang=\"en-GB\">
+    The Codicils are part of your Will. Since the Codicils are likely to change over time the Codicil which has the latest date and which is attached to this
+    Will, forms part of the Will and revokes all former Codicils made by you. Therefore the dates on the Codicil may not necessarily correspond with the date
+    on the Will. Please ensure that you sign your latest Codicil and date it.
+</p>
+<p lang=\"en-GB\">
+    Signature ......................................... Date ............................................
+</p>
+<br>
+<p>
+The information in this website, which does not purport to be a comprehensive or complete answer to any specific inheritance scenario, has been provided by The World Federation of KSIMC, Africa Federation, and The Council of European Jamaats (hereinafter referred to as ‘the Organisations’), and has not been independently verified for compliance with UK laws on inheritance or taxation, or the laws of any other country. While the contents of this website have been prepared in good faith, no representation, warranty, assurance or undertaking (express or implied) is made, and no responsibility or liability is or will be accepted by the Organisations or by their officers, employees, members or agents in relation to the adequacy, accuracy, completeness or reasonableness of the contents of this website. All and any such responsibility and liability is expressly disclaimed. The recipient acknowledges and agrees that no person has, nor is held out as having, any authority to give any statement, warranty, representation, assurance or undertaking on behalf of the Organisations in connection with the content of this website.
+ 
+No information set out, or referred to, in this website shall form the basis of any contract. 
+ 
+The Organisations give no undertaking to provide any recipient with access to any additional information or to update the contents of this website or to give any additional information, or to correct any inaccuracies in it which may become apparent.
+</p>
+</div>';
+		
+		 ?>";
+
+
+
+		file_put_contents($path, $content);
+		file_put_contents($html_path, $html_content);
+		
+		#Configure Email
+
+		$my_module = 'foo';
+		$my_mail_token = 'bar';
+		$from = variable_get('system_mail', 'mailer@shiawills.org');
+		$message = array(
+			'id' => $my_module . '_' . $my_mail_token,
+			'to' => $submitted_data[4]['value'][0],
+			'subject' => 'Your Shiawills.org Inheritance calculation was created!',
+			'body' =>  'Dear '.$submitted_data[1]['value'][0].'<br> Thank you for submitting your inheritance calculation. You can download your calculation at the link below: <br>
+			          
+			<a href="'.$link.'">Click here to download calculation</a>
+			<p>Thank you</p>
+			<p>Shiawills Team</p>
+
+			',
+			'headers' => array(
+			'From' => $from,
+			'Sender' => $from,
+	           'Content-Type' => 'text/html',
+			'Return-Path' => $from,
+		),
+	);
+
+
+		$system = drupal_mail_system($my_module, $my_mail_token);
+
+		if ($system->mail($message)) {
+		// Success.
+		}
+		else {
+		// Failure.
+		}
+	}
+}
