@@ -446,8 +446,7 @@ function webform_to_doc_webform_submission_presave($node, $submission) {
 		$daughter_percentage = ($daughter_complete_share/$total_estate_third_removed)* 100;
 		$daughter_percentage = round($daughter_percentage, 1);
 		
-		// The percentages by default won't sum to 100% due to rounding bias. This piece of code takes the remainder and adds to each of the percentages
-		
+				
 		$total_percent = $spouse_percentage + $father_percentage + $mother_percentage + $son_percentage + $daughter_percentage;
 		$remainder = 100 - $total_percent;
 		
