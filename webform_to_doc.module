@@ -432,29 +432,41 @@ function webform_to_doc_webform_submission_presave($node, $submission) {
 		*/
 		
 		$spouse_percentage = ($spouse_complete_share/$total_estate_third_removed)* 100;
-		$spouse_percentage = round($spouse_percentage, 0);
+		$spouse_percentage = round($spouse_percentage, 1);
 		
 		$father_percentage = ($father_complete_share/$total_estate_third_removed)* 100;
-		$father_percentage = round($father_percentage, 0);
+		$father_percentage = round($father_percentage, 1);
 		
 		$mother_percentage = ($mother_complete_share/$total_estate_third_removed)* 100;
-		$mother_percentage = round($mother_percentage, 0);
+		$mother_percentage = round($mother_percentage, 1);
 		
 		$son_percentage = ($son_complete_share/$total_estate_third_removed)* 100;
-		$son_percentage = round($son_percentage, 0);
+		$son_percentage = round($son_percentage, 1);
 		
 		$daughter_percentage = ($daughter_complete_share/$total_estate_third_removed)* 100;
-		$daughter_percentage = round($daughter_percentage, 0);
+		$daughter_percentage = round($daughter_percentage, 1);
+		
+		//The percentages by default won't sum to 100% due to rounding bias. This piece of code takes the remainder and adds to each of the percentages
 		
 		$total_percent = $spouse_percentage + $father_percentage + $mother_percentage + $son_percentage + $daughter_percentage;
 		$remainder = 100 - $total_percent;
 		
-		$spouse_percentage = $spouse_percentage + ($remainder / 5);
-		$father_percentage = $father_percentage + ($remainder / 5);
+		// Make sure that the value being fed through is a positive floating point number, otherwise we will end up assigning inheritance share to dead spouses and the like
+		if (filter_var($spouse_percentage, FILTER_VALIDATE_FLOAT) && $spouse_percentage > 0) {
+			$spouse_percentage = $spouse_percentage + ($remainder / 5);
+		}
+		if (filter_var($father_percentage, FILTER_VALIDATE_FLOAT) && $father_percentage > 0) {
+			$father_percentage = $father_percentage + ($remainder / 5);
+		}
+		if (filter_var($mother_percentage, FILTER_VALIDATE_FLOAT) && $mother_percentage > 0) {
 		$mother_percentage = $mother_percentage + ($remainder / 5);
-		$son_percentage = $son_percentage + ($remainder / 5);
-		$daughter_percentage = $daughter_percentage + ($remainder / 5);
-		
+		}
+		if (filter_var($son_percentage, FILTER_VALIDATE_FLOAT) && $son_percentage > 0) {
+			$son_percentage = $son_percentage + ($remainder / 5);
+		}
+		if (filter_var($daughter_percentage, FILTER_VALIDATE_FLOAT) && $daughter_percentage > 0) {
+			$daughter_percentage = $daughter_percentage + ($remainder / 5);
+		}
 		
 		#Markup 
 		
