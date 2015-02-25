@@ -432,19 +432,19 @@ function webform_to_doc_webform_submission_presave($node, $submission) {
 		*/
 		
 		$spouse_percentage = ($spouse_complete_share/$total_estate_third_removed)* 100;
-		$spouse_percentage = number_format($spouse_percentage, 0);
+		// $spouse_percentage = number_format($spouse_percentage, 0);
 		
 		$father_percentage = ($father_complete_share/$total_estate_third_removed)* 100;
-		$father_percentage = number_format($father_percentage, 0);
+		// $father_percentage = number_format($father_percentage, 0);
 		
 		$mother_percentage = ($mother_complete_share/$total_estate_third_removed)* 100;
-		$mother_percentage = number_format($mother_percentage, 0);
+		// $mother_percentage = number_format($mother_percentage, 0);
 		
 		$son_percentage = ($son_complete_share/$total_estate_third_removed)* 100;
-		$son_percentage = number_format($son_percentage, 0);
+		// $son_percentage = number_format($son_percentage, 0);
 		
 		$daughter_percentage = ($daughter_complete_share/$total_estate_third_removed)* 100;
-		$daughter_percentage = number_format($daughter_percentage, 0);
+		// $daughter_percentage = number_format($daughter_percentage, 0);
 		
 		#Markup 
 		
@@ -537,8 +537,8 @@ persons or to causes, is ".$currency.$discretionary_total."</B></FONT></FONT></F
 <!--Percentages Table-->
 <table border=\"1\">
 <tr>
-<th>Family Members</th>
-<th>Percentage</th>
+<td><strong>Family Members</strong></td>
+<td><strong>Percentage</strong></td>
 </tr>
 <tr>
 <td>Spouse</td>
