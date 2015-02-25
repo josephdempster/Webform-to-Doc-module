@@ -437,6 +437,15 @@ function webform_to_doc_webform_submission_presave($node, $submission) {
 		$father_percentage = ($father_complete_share/$total_estate_third_removed)* 100;
 		$father_percentage = number_format($father_percentage, 0);
 		
+		$mother_percentage = ($mother_complete_share/$total_estate_third_removed)* 100;
+		$mother_percentage = number_format($mother_percentage, 0);
+		
+		$son_percentage = ($son_complete_share/$total_estate_third_removed)* 100;
+		$son_percentage = number_format($son_percentage, 0);
+		
+		$daughter_percentage = ($daughter_complete_share/$total_estate_third_removed)* 100;
+		$daughter_percentage = number_format($daughter_percentage, 0);
+		
 		#Markup 
 		
 		$content = "<?php
@@ -498,8 +507,7 @@ that, two-thirds are to be distributed as follows in accordance with
 Islamic law:&nbsp".$currency.$total_estate_third_removed."</B></FONT></FONT></FONT></FONT></P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
-<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>SPOUSE: ".$currency.$spouse_complete_share."&nbsp;".$spouse_percentage."
-</B></FONT></FONT></FONT></FONT>
+<P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>SPOUSE: ".$currency.$spouse_complete_share."</B></FONT></FONT></FONT></FONT>
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
@@ -519,7 +527,7 @@ Islamic law:&nbsp".$currency.$total_estate_third_removed."</B></FONT></FONT></FO
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>FATHER: ".$currency.$father_complete_share."
-</B>&nbsp;".$father_percentage."</FONT></FONT></FONT></FONT>
+&nbsp;".$father_percentage."</B></FONT></FONT></FONT></FONT>
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
@@ -1159,7 +1167,35 @@ you sign your latest Codicil and date it.  </FONT></FONT></FONT></FONT></FONT>
 </P>
 <P STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
-<P STYLE=\"widows: 2; orphans: 2; page-break-before: always\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>Signature
+<P STYLE=\"widows: 2; orphans: 2; page-break-before: always\">
+<!--Percentages Table-->
+<table border=\"1\" width=\"80%\">
+<tr>
+<th>Family Members</th>
+<th>Percentage</th>
+</tr>
+<tr>
+<td>Spouse</td>
+<td>".$spouse_percentage."</td>
+</tr>
+<tr>
+<td>Father</td>
+<td>".$father_percentage."</td>
+</tr>
+<tr>
+<td>Mother</td>
+<td>".$mother_percentage."</td>
+</tr>
+<tr>
+<td>Son</td>
+<td>".$son_percentage."</td>
+</tr>
+<tr>
+<td>Daughter</td>
+<td>".$daughter_percentage."</td>
+</tr>
+</table>
+<P CLASS=\"western\" ALIGN=CENTER STYLE=\"widows: 2; orphans: 2; page-break-before: always\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>Signature
 &hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;.
 Date &hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;..</FONT></FONT><FONT FACE=\"Verdana, serif\"><FONT SIZE=3><B>Codicil
 III</B></FONT></FONT></FONT></FONT></FONT></P>
