@@ -432,19 +432,19 @@ function webform_to_doc_webform_submission_presave($node, $submission) {
 		*/
 		
 		$spouse_percentage = ($spouse_complete_share/$total_estate_third_removed)* 100;
-		// $spouse_percentage = number_format($spouse_percentage, 0);
+		$spouse_percentage = round($spouse_percentage, 1);
 		
 		$father_percentage = ($father_complete_share/$total_estate_third_removed)* 100;
-		// $father_percentage = number_format($father_percentage, 0);
+		$father_percentage = round($father_percentage, 1);
 		
 		$mother_percentage = ($mother_complete_share/$total_estate_third_removed)* 100;
-		// $mother_percentage = number_format($mother_percentage, 0);
+		$mother_percentage = round($mother_percentage, 1);
 		
 		$son_percentage = ($son_complete_share/$total_estate_third_removed)* 100;
-		// $son_percentage = number_format($son_percentage, 0);
+		$son_percentage = round($son_percentage, 1);
 		
 		$daughter_percentage = ($daughter_complete_share/$total_estate_third_removed)* 100;
-		// $daughter_percentage = number_format($daughter_percentage, 0);
+		$daughter_percentage = round($daughter_percentage, 1);
 		
 		#Markup 
 		
