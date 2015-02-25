@@ -527,7 +527,7 @@ Islamic law:&nbsp".$currency.$total_estate_third_removed."</B></FONT></FONT></FO
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><FONT FACE=\"Times New Roman, serif\"><FONT SIZE=3><FONT FACE=\"Verdana, serif\"><FONT SIZE=2 STYLE=\"font-size: 11pt\"><B>FATHER: ".$currency.$father_complete_share."
-&nbsp;".$father_percentage."</B></FONT></FONT></FONT></FONT>
+&nbsp;</B></FONT></FONT></FONT></FONT>
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
@@ -538,6 +538,34 @@ persons or to causes, is ".$currency.$discretionary_total."</B></FONT></FONT></F
 </P>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
+<!--Percentages Table-->
+<table border=\"1\">
+<tr>
+<th>Family Members</th>
+<th>Percentage</th>
+</tr>
+<tr>
+<td>Spouse</td>
+<td>".$spouse_percentage."</td>
+</tr>
+<tr>
+<td>Father</td>
+<td>".$father_percentage."</td>
+</tr>
+<tr>
+<td>Mother</td>
+<td>".$mother_percentage."</td>
+</tr>
+<tr>
+<td>Son</td>
+<td>".$son_percentage."</td>
+</tr>
+<tr>
+<td>Daughter</td>
+<td>".$daughter_percentage."</td>
+</tr>
+</table>
+</p>
 <P CLASS=\"western\" STYLE=\"widows: 2; orphans: 2; page-break-before: always\">
 <BR>
 </P>
@@ -1168,33 +1196,6 @@ you sign your latest Codicil and date it.  </FONT></FONT></FONT></FONT></FONT>
 <P STYLE=\"widows: 2; orphans: 2\"><BR>
 </P>
 <P STYLE=\"widows: 2; orphans: 2; page-break-before: always\">
-<!--Percentages Table-->
-<table border=\"1\" width=\"80%\">
-<tr>
-<th>Family Members</th>
-<th>Percentage</th>
-</tr>
-<tr>
-<td>Spouse</td>
-<td>".$spouse_percentage."</td>
-</tr>
-<tr>
-<td>Father</td>
-<td>".$father_percentage."</td>
-</tr>
-<tr>
-<td>Mother</td>
-<td>".$mother_percentage."</td>
-</tr>
-<tr>
-<td>Son</td>
-<td>".$son_percentage."</td>
-</tr>
-<tr>
-<td>Daughter</td>
-<td>".$daughter_percentage."</td>
-</tr>
-</table>
 <P CLASS=\"western\" ALIGN=CENTER STYLE=\"widows: 2; orphans: 2; page-break-before: always\"><FONT COLOR=\"#0d3279\"><FONT FACE=\"Trebuchet MS, serif\"><FONT SIZE=1 STYLE=\"font-size: 8pt\"><FONT FACE=\"Verdana, serif\"><FONT SIZE=3>Signature
 &hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;.
 Date &hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;&hellip;..</FONT></FONT><FONT FACE=\"Verdana, serif\"><FONT SIZE=3><B>Codicil
@@ -1463,6 +1464,35 @@ echo '
 <p lang=\"en-GB\">
     <strong>Your remaining one-third, that you may distribute as you wish, either to persons or to causes, is ".$currency.$discretionary_total."</strong>
 </p>
+<!--Percentages Table-->
+<table border=\"1\" width=\"80%\">
+<tr>
+<th>Family Members</th>
+<th>Percentage</th>
+</tr>
+<tr>
+<td>Spouse</td>
+<td>".$spouse_percentage."</td>
+</tr>
+<tr>
+<td>Father</td>
+<td>".$father_percentage."</td>
+</tr>
+<tr>
+<td>Mother</td>
+<td>".$mother_percentage."</td>
+</tr>
+<tr>
+<td>Son</td>
+<td>".$son_percentage."</td>
+</tr>
+<tr>
+<td>Daughter</td>
+<td>".$daughter_percentage."</td>
+</tr>
+</table>
+</p>
+<!--
 <p lang=\"en-GB\" align=\"CENTER\">
     <strong>AN EXAMPLE OF A WILL</strong>
 </p>
